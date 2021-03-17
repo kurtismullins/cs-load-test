@@ -1,59 +1,78 @@
 package tests
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/nimrodshn/cs-load-test/pkg/helpers"
 	"github.com/nimrodshn/cs-load-test/pkg/result"
+	amsv1 "github.com/openshift-online/ocm-sdk-go/accountsmgmt/v1"
+	v1 "github.com/openshift-online/ocm-sdk-go/accountsmgmt/v1"
+	uuid "github.com/satori/go.uuid"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-func TestRegisterNewCluster(attacker *vegeta.Attacker,
-	testID string,
-	metrics map[string]*vegeta.Metrics,
-	rate vegeta.Pacer,
-	outputDirectory string,
-	duration time.Duration) error {
+func TestRegisterNewCluster(options *helpers.TestOptions) error {
 
-	testName := "new-cluster-registration"
-	fileName := fmt.Sprintf("%s_%s", testID, testName)
-
+	testName := options.TestName
 	log.Printf("Executing Test: %s", testName)
 
-	// TODO: Generate a UUID for each Request
-	// TODO: The authorization_token should be real. Not sure what to set it as, though.
-	target := vegeta.Target{
-		Method: http.MethodPost,
-		URL:    helpers.ClusterRegistrationEndpoint,
-		Body:   []byte("{\"authorization_token\": \"specify-me\", \"cluster_id\": \"c98550e5-1c9f-47bb-b46f-b2b6e7befeb3\"}"),
-	}
+	// Fetch the authorization token and create a dynamic Target generator for
+	// building valid HTTP Requests
+	authorizationToken := "TODO: Fetch me programattically"
+	targeter := generateClusterRegistrationTargeter(authorizationToken)
 
-	targeter := vegeta.NewStaticTargeter(target)
-	resultFile, err := createFile(fileName, outputDirectory)
+	// Create a file to store results
+	fileName := fmt.Sprintf("%s_%s.json", options.ID, testName)
+	resultFile, err := createFile(fileName, options.OutputDirectory)
 	defer resultFile.Close()
 	if err != nil {
 		return err
 	}
 
-	// Display some info about the test being ran to catch obvious issues
-	// and include contextq
-	fmt.Printf("Test: %s\n", testName)
-	fmt.Printf("Output File: %s/%s\n", outputDirectory, fileName)
+	// Store Metrics from load test
+	options.Metrics[testName] = new(vegeta.Metrics)
+	defer options.Metrics[testName].Close()
 
-	// TODO: Determine a clean way to provide sane default rates while
-	//       allowing the ability to override rates without impacting every
-	//       test.
-	rate = vegeta.Rate{Freq: helpers.RegisterNewClusterRate, Per: time.Second}
-
-	metrics[testName] = new(vegeta.Metrics)
-	defer metrics[testName].Close()
-
-	for res := range attacker.Attack(targeter, rate, duration, testName) {
+	for res := range options.Attacker.Attack(targeter, options.Rate, options.Duration, testName) {
 		result.Write(res, resultFile)
+		options.Metrics[testName].Add(res)
 	}
 
+	fmt.Printf("Results written to: %s/%s\n", options.OutputDirectory, fileName)
+
 	return nil
+}
+
+func getAuthorizationToken() {
+	// TODO: Implement me
+}
+
+func generateClusterRegistrationTargeter(authorizationToken string) vegeta.Targeter {
+
+	targeter := func(t *vegeta.Target) error {
+
+		// Each Cluster uses a UUID to ensure uniqueness
+		clusterId := uuid.NewV4().String()
+		body, err := amsv1.NewClusterRegistrationRequest().AuthorizationToken(authorizationToken).ClusterID(clusterId).Build()
+		if err != nil {
+			return err
+		}
+
+		var raw bytes.Buffer
+		err = v1.MarshalClusterRegistrationRequest(body, &raw)
+		if err != nil {
+			return err
+		}
+
+		t.Method = http.MethodPost
+		t.URL = helpers.ClusterRegistrationEndpoint
+		t.Body = raw.Bytes()
+
+		return nil
+	}
+
+	return targeter
 }

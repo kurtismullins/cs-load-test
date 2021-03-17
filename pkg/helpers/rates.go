@@ -1,12 +1,23 @@
 package helpers
 
-// Default rate (requests/second) for each endpoint
-const (
-	CreateClusterRate           = 10
-	ListClustersRate            = 10
-	SelfAccessTokenRate         = 17 // ~1000/hour
-	ListSubscriptionsRate       = 34 // ~2000/hour
-	AccessReviewRate            = 100
-	RegisterNewClusterRate      = 17 // ~1000/hour
-	RegisterExistingClusterRate = 25 // "reauth"
+import (
+	"time"
+
+	vegeta "github.com/tsenart/vegeta/v12/lib"
+)
+
+var (
+
+	// Cluster Services
+	CreateClusterRate = vegeta.Rate{Freq: 10, Per: time.Second}
+	ListClustersRate  = vegeta.Rate{Freq: 10, Per: time.Second}
+
+	// Account Services
+	SelfAccessTokenRate   = vegeta.Rate{Freq: 1000, Per: time.Hour}
+	ListSubscriptionsRate = vegeta.Rate{Freq: 2000, Per: time.Hour}
+
+	// Authorization Services
+	AccessReviewRate            = vegeta.Rate{Freq: 100, Per: time.Second}
+	RegisterNewClusterRate      = vegeta.Rate{Freq: 1000, Per: time.Hour}
+	RegisterExistingClusterRate = vegeta.Rate{Freq: 25, Per: time.Second}
 )

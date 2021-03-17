@@ -28,13 +28,16 @@ func Run(
 	testID := uuid.NewV4().String()
 
 	// Specify Test Cases
+	// They are written this way to re-use functionality where possible and
+	// hopefully make it easier to modify and/or extend given the declarative
+	// style.
 	tests := []helpers.TestOptions{
 
 		{
 			TestName: "self-access-token",
 			Path:     helpers.SelfAccessTokenEndpoint,
 			Method:   http.MethodPost,
-			Rate:     vegeta.Rate{Freq: helpers.SelfAccessTokenRate, Per: time.Second},
+			Rate:     helpers.SelfAccessTokenRate,
 			Handler:  TestGenericEndpoint,
 		},
 
@@ -42,7 +45,7 @@ func Run(
 			TestName: "list-subscriptions",
 			Path:     helpers.ListSubscriptionsEndpoint,
 			Method:   http.MethodGet,
-			Rate:     vegeta.Rate{Freq: helpers.ListSubscriptionsRate, Per: time.Second},
+			Rate:     helpers.ListSubscriptionsRate,
 			Handler:  TestGenericEndpoint,
 		},
 
@@ -51,51 +54,47 @@ func Run(
 			Path:     helpers.AccessReviewEndpoint,
 			Method:   http.MethodPost,
 			Body:     "{\"account_username\": \"rhn-support-tiwillia\", \"action\": \"get\", \"resource_type\": \"Subscription\"}",
-			Rate:     vegeta.Rate{Freq: helpers.AccessReviewRate, Per: time.Second},
+			Rate:     helpers.AccessReviewRate,
 			Handler:  TestGenericEndpoint,
+		},
+
+		{
+			TestName: "register-new-cluster",
+			Path:     helpers.ClusterRegistrationEndpoint,
+			Method:   http.MethodPost,
+			Rate:     helpers.RegisterNewClusterRate,
+			Handler:  TestRegisterNewCluster,
+		},
+
+		{
+			TestName: "create-cluster",
+			Rate:     helpers.CreateClusterRate,
+			Handler:  TestCreateCluster,
+		},
+
+		{
+			TestName: "list-clusters",
+			Rate:     helpers.ListClustersRate,
+			Handler:  TestListClusters,
 		},
 	}
 
-	// Include "Test Infrastructure" in each TestOptions.
-	// This is done here to avoid duplicating a lot of code above.
 	for i := range tests {
+
+		// Bind "Test Harness"
 		tests[i].ID = testID
 		tests[i].Duration = duration
 		tests[i].OutputDirectory = outputDirectory
 		tests[i].Attacker = attacker
 		tests[i].Metrics = metrics
-	}
 
-	/*
-
-		testCases := []testCase{
-			TestCreateCluster,
-			TestListClusters,
-			TestSelfAccessToken,
-			TestListSubscriptions,
-			TestAccessReview,
-			TestRegisterNewCluster,
-		}
-
-		for _, testCase := range testCases {
-			err := testCase(attacker,
-				testID,
-				metrics,
-				rate,
-				outputDirectory,
-				duration)
-			if err != nil {
-				return err
-			}
-		}
-
-	*/
-
-	for _, test := range tests {
+		// Execute the Test
+		test := tests[i]
 		err := test.Handler(&test)
 		if err != nil {
 			return err
 		}
+
 	}
 
 	return nil
